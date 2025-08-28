@@ -1,24 +1,41 @@
 import streamlit as st
 import pickle
 import pandas as pd
+import requests
+from io import BytesIO
 
-# Load movie data
-movie_dict = pickle.load(open('movies_dict.pkl', 'rb'))
-similars = pickle.load(open('similars.pkl', 'rb'))
+# ----------------------------
+# URLs for your pickle files
+# Replace these with your actual GitHub raw URLs
+MOVIES_URL = "https://raw.githubusercontent.com/YourUserName/your-pkl-repo/main/movies_dict.pkl"
+SIMILARS_URL = "https://raw.githubusercontent.com/YourUserName/your-pkl-repo/main/similars.pkl"
+
+
+# ----------------------------
+
+@st.cache_data
+def load_pickle_from_url(url):
+    response = requests.get(url)
+    response.raise_for_status()
+    return pickle.load(BytesIO(response.content))
+
+
+# Load data
+movie_dict = load_pickle_from_url(MOVIES_URL)
+similars = load_pickle_from_url(SIMILARS_URL)
 
 movies = pd.DataFrame(movie_dict)
 
 # ---- Custom CSS ----
 st.markdown("""
-    <style>
-    /* Dark background with gradient animation */
+<style>
+/* App background gradient */
 .stApp {
     background: linear-gradient(
         270deg,
         rgba(255,0,0,0.3),
-        rgba(0,255,0,0.3),
-        rgba(255,255,0,0.3),
-        rgba(0,170,255,0.3),
+        rgba(255,165,0,0.3),
+        rgba(255,192,203,0.3),
         rgba(255,0,0,0.3)
     );
     background-size: 400% 400%;
@@ -26,31 +43,29 @@ st.markdown("""
     color: #ecf0f1;
 }
 
+/* Gradient animation keyframes */
 @keyframes gradientBG {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
 
-
-
-    /* Glowing main title */
+/* Main title with red glow */
 .main-title {
-    font-size: 48px;
+    font-size: 52px;
     font-weight: bold;
     text-align: center;
     margin-bottom: 20px;
     background: linear-gradient(
         270deg,
-        rgba(255,75,43,1),  /* Red */
-        rgba(255,0,0,1)     /* Darker Red */
+        rgba(255,75,43,1),
+        rgba(255,0,0,1)
     );
     background-size: 800% 800%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 
-        0 0 4px rgba(255,75,43,0.6),
-        0 0 8px rgba(255,0,0,0.6);
+    text-shadow: 0 0 4px rgba(255,75,43,0.6),
+                 0 0 8px rgba(255,0,0,0.6);
     animation: luminousFlow 6s linear infinite;
 }
 
@@ -60,26 +75,18 @@ st.markdown("""
     100% { background-position: 0% 50%; }
 }
 
-
-@keyframes luminousFlow {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+/* Movie cards container */
+.movie-card-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 20px;
 }
 
-
-
-
-    /* Movie cards */
-    .movie-card-container {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        margin-top: 20px;
-    }
+/* Movie cards */
 .movie-card {
     display: inline-block;
-    background: #2c3e50; /* professional dark background */
+    background: #2c3e50; 
     border-radius: 18px;
     padding: 20px;
     margin: 12px;
@@ -93,7 +100,7 @@ st.markdown("""
     overflow: hidden;
 }
 
-/* Hover effect: glowing gradient flow */
+/* Hover: pink/orange gradient glow */
 .movie-card:hover {
     transform: translateY(-8px) scale(1.05);
     box-shadow: 0 12px 25px rgba(255,100,100,0.6);
@@ -121,40 +128,23 @@ st.markdown("""
         margin: 10px auto;
         padding: 15px;
     }
+    .main-title { font-size: 42px; }
 }
-
-
-
-
-    /* Subheader */
-    .custom-subheader {
-        text-align: center;
-        font-size: 28px;
-        font-weight: 600;
-        color: #ecf0f1;
-        margin-top: 20px;
-    }
-
-    /* Responsive adjustments */
-    @media (max-width: 600px) {
-        .movie-card { width: 90%; }
-        .main-title { font-size: 40px; }
-        .custom-subheader { font-size: 24px; }
-    }
-    </style>
+</style>
 """, unsafe_allow_html=True)
 
 # ---- Title ----
-st.markdown("<div class='main-title'> Movie Recommendation System</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-title'>🍿 Movie Recommendation System</div>", unsafe_allow_html=True)
 
 # ---- Search box ----
-# Display as H2 heading
-st.markdown("<h3 style='text-align: center; color: #ecf0f1;'>Search your favorite movie 🎥</h3>", unsafe_allow_html=True)
+selected_movie_name = st.selectbox(
+    '<h2 style="text-align:center;">Search your favorite movie 🎥</h2>',
+    movies.title.values,
+    key='movie_select'
+)
 
-# Then render the selectbox without label
-selected_movie_name = st.selectbox('', movies.title.values, key='movie_select')
 
-
+# ---- Recommendation logic ----
 def recommend(movie):
     movie_idx = movies[movies['title'] == movie].index[0]
     distances = similars[movie_idx]
@@ -162,18 +152,15 @@ def recommend(movie):
     similar = sorted(e_distances, reverse=True, key=lambda x: x[1])[1:11]
     return [movies.iloc[i[0]].title for i in similar]
 
+
 # ---- Recommend button ----
 if st.button('✨ Recommend'):
     recommendations = recommend(selected_movie_name)
-    st.markdown("<div class='custom-subheader'>🔥 Top Recommendations for You:</div>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align:center;'>🔥 Top Recommendations for You:</h3>", unsafe_allow_html=True)
 
-    # Wrap all cards in a single container
+    # Render movie cards
     movie_cards = "<div class='movie-card-container'>"
     for rec in recommendations:
-        movie_cards += "<div class='movie-card'>🎬<div class='movie-title'>{}</div></div>".format(rec)
+        movie_cards += f"<div class='movie-card'>🎬<div class='movie-title'>{rec}</div></div>"
     movie_cards += "</div>"
-
-    # Render all cards at once
     st.markdown(movie_cards, unsafe_allow_html=True)
-
-
